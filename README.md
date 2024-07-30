@@ -59,11 +59,11 @@ python torchpass.py --mode train --input /path/to/passwords.txt --model model.pt
 #### Arguments
 
 - `--mode train`: (Required) Specifies that the program should run in training mode.
-- `--input /path/to/passwords.txt`: (Required) Specifies the path to the input file containing the passwords for training.
-- `--model model.pth`: (Optional, default: `'model.pth'`) Path to save or load the model. If the file exists, the model will continue training from the saved state.
-- `--epochs 50`: (Optional, default: `50`) Specifies the number of training epochs.
-- `--batch 256`: (Optional, default: `256`) Specifies the batch size for training.
-- `--workers 4`: (Optional, default: `4`) Specifies the number of worker processes for data loading.
+- `--input`: (Required) Specifies the path to the input file containing the passwords for training.
+- `--model`: (Optional, default: `'model.pth'`) Path to save or load the model. If the file exists, the model will continue training from the saved state.
+- `--epochs`: (Optional, default: `50`) Specifies the number of training epochs.
+- `--batch`: (Optional, default: `256`) Specifies the batch size for training.
+- `--worker`: (Optional, default: `4`) Specifies the number of worker processes for data loading.
 
 ### Generation Mode
 
@@ -77,9 +77,9 @@ python torchpass.py --mode generate --model model.pth --output generated_passwor
 
 - `--mode generate`: (Required) Specifies that the program should run in generation mode.
 - `--model model.pth`: (Required) Path to the trained model file.
-- `--output generated_passwords.txt`: (Required) Specifies the output file to save the generated passwords.
-- `--num_pass 100`: (Optional, default: `100`) Specifies the number of passwords to generate.
-- `--temp 1.0`: (Optional, default: `1.0`) Specifies the temperature for generation, controlling the randomness. Lower values make the output more deterministic, while higher values increase randomness.
+- `--output`: (Required) Specifies the output file to save the generated passwords.
+- `--num_pass`: (Optional, default: `100`) Specifies the number of passwords to generate.
+- `--temp`: (Optional, default: `1.0`) Specifies the temperature for generation, controlling the randomness. Lower values make the output more deterministic, while higher values increase randomness.
 
 ### Example Commands
 
