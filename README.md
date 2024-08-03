@@ -99,6 +99,8 @@ python torchpass.py --mode generate --model model.pth --output generated_passwor
 ## Notes
 At this time, I've not cracked how to memory map the dataset beyond the RAM limit. The issue sits with degredation of performance when reading from SSD instead of RAM. For the time being, split the dataset to fit into your RAM.
 
+NPUs will not be supported in the near future, as ```aten::_thnn_fused_lstm_cell``` is not supported by DirectML at this time. If that changes, I will revist.
+
 ## Contributing
 Feel welcome to submit pull requests! This was started as a mental exercise so I am very open to improvements!
 
