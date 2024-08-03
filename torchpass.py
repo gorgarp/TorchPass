@@ -8,9 +8,14 @@ import random
 import time
 import os
 import multiprocessing
+import warnings
+
+#Comment the line below if you want warnings shown. 
+#Some dependacies haven't yet updated torch.amp, which creates warnings.
+warnings.filterwarnings("ignore", category=FutureWarning) 
 
 # Set up CUDA if available, otherwise use CPU
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+DEVICE = torch.device("cuda" if torch.cuda.device_count() > 0 else "cpu")
 
 # Print the device being used, but only in the main process
 if multiprocessing.current_process().name == "MainProcess":
@@ -116,7 +121,7 @@ def train(model, train_loader, val_loader, criterion, optimizer, scheduler, num_
             optimizer.zero_grad(set_to_none=True)
             
             # Use automatic mixed precision for faster training
-            with torch.amp.autocast(device_type='cuda' if torch.cuda.is_available() else 'cpu'):
+            with torch.amp.autocast('cuda' if torch.cuda.is_available() else 'cpu'):
                 outputs = model(inputs)
                 loss = criterion(outputs.contiguous().view(-1, outputs.size(-1)), targets.contiguous().view(-1))
             
@@ -140,7 +145,8 @@ def train(model, train_loader, val_loader, criterion, optimizer, scheduler, num_
                 inputs = batch[:, :-1]
                 targets = batch[:, 1:]
                 
-                with torch.amp.autocast(device_type='cuda' if torch.cuda.is_available() else 'cpu'):
+                # Use automatic mixed precision for faster training
+                with torch.amp.autocast('cuda' if torch.cuda.is_available() else 'cpu'):
                     outputs = model(inputs)
                     loss = criterion(outputs.contiguous().view(-1, outputs.size(-1)), targets.contiguous().view(-1))
                 total_val_loss += loss.item()
@@ -156,7 +162,7 @@ def train(model, train_loader, val_loader, criterion, optimizer, scheduler, num_
         if avg_val_loss < best_val_loss:
             best_val_loss = avg_val_loss
             no_improve = 0
-            torch.save(model.state_dict(), 'best_model.pth')
+            torch.save(model.module.state_dict(), 'best_model.pth') 
         else:
             no_improve += 1
             if no_improve >= patience:
@@ -166,7 +172,7 @@ def train(model, train_loader, val_loader, criterion, optimizer, scheduler, num_
         model.train()
     
     # Load the best model
-    model.load_state_dict(torch.load('best_model.pth', map_location=DEVICE, weights_only=True))
+    model.module.load_state_dict(torch.load('best_model.pth', map_location=DEVICE))
     return model
 
 # Function to generate a single password
@@ -225,6 +231,9 @@ def main():
             idx_to_char = {i: char for char, i in char_to_idx.items()}
             model = PassGen(len(char_to_idx), embed_size=256, hidden_size=512, num_layers=3).to(DEVICE)
 
+        if torch.cuda.device_count() > 1:
+            model = nn.DataParallel(model)
+
         # Load and preprocess password data
         with open(args.input, 'r', encoding='latin-1') as f:
             passwords = [line.strip() for line in f if 8 <= len(line.strip()) <= 26 and all(32 <= ord(c) < 127 for c in line.strip())]
@@ -259,7 +268,7 @@ def main():
 
         # Save the trained model
         torch.save({
-            'model_state_dict': model.state_dict(),
+            'model_state_dict': model.module.state_dict(),
             'char_to_idx': char_to_idx,
             'idx_to_char': idx_to_char
         }, args.model)
@@ -284,7 +293,7 @@ def main():
         print(f"Generating passwords...")
         generated_passwords = []
         while len(generated_passwords) < args.num_pass:
-            password = gen_pass(model, char_to_idx, idx_to_char, temp=args.temp)  # Changed 'temperature' to 'temp'
+            password = gen_pass(model, char_to_idx, idx_to_char, temp=args.temp)
             if password:
                 generated_passwords.append(password)
                 print(f"Generated {len(generated_passwords)}: {password}")
