@@ -162,7 +162,10 @@ def train(model, train_loader, val_loader, criterion, optimizer, scheduler, num_
         if avg_val_loss < best_val_loss:
             best_val_loss = avg_val_loss
             no_improve = 0
-            torch.save(model.module.state_dict(), 'best_model.pth') 
+            if torch.cuda.device_count() > 1:
+                torch.save(model.module.state_dict(), 'best_model.pth')
+            else:
+                torch.save(model.state_dict(), 'best_model.pth')
         else:
             no_improve += 1
             if no_improve >= patience:
@@ -172,7 +175,11 @@ def train(model, train_loader, val_loader, criterion, optimizer, scheduler, num_
         model.train()
     
     # Load the best model
-    model.module.load_state_dict(torch.load('best_model.pth', map_location=DEVICE))
+    if torch.cuda.device_count() > 1:
+        model.module.load_state_dict(torch.load('best_model.pth', map_location=DEVICE))
+    else:
+        model.load_state_dict(torch.load('best_model.pth', map_location=DEVICE))
+    
     return model
 
 # Function to generate a batch of passwords
@@ -253,6 +260,7 @@ def main():
         train_dataset = PassData(train_passwords, max_len)
         val_dataset = PassData(val_passwords, max_len)
 
+        # Ensure the dataset uses the same character mapping as the model
         train_dataset.char_to_idx = char_to_idx
         train_dataset.idx_to_char = idx_to_char
         train_dataset.vocab_size = len(char_to_idx)
@@ -273,11 +281,18 @@ def main():
         model = train(model, train_loader, val_loader, criterion, optimizer, scheduler, args.epochs)
 
         # Save the trained model
-        torch.save({
-            'model_state_dict': model.module.state_dict(),
-            'char_to_idx': char_to_idx,
-            'idx_to_char': idx_to_char
-        }, args.model)
+        if torch.cuda.device_count() > 1:
+            torch.save({
+                'model_state_dict': model.module.state_dict(),
+                'char_to_idx': char_to_idx,
+                'idx_to_char': idx_to_char
+            }, args.model)
+        else:
+            torch.save({
+                'model_state_dict': model.state_dict(),
+                'char_to_idx': char_to_idx,
+                'idx_to_char': idx_to_char
+            }, args.model)
         print(f"Model saved: {args.model}")
 
     elif args.mode == 'generate':
