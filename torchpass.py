@@ -10,9 +10,9 @@ import os
 import multiprocessing
 import warnings
 
-#Comment the line below if you want warnings shown. 
-#Some dependacies haven't yet updated torch.amp, which creates warnings.
-warnings.filterwarnings("ignore", category=FutureWarning) 
+# Comment the line below if you want warnings shown.
+# Some dependencies haven't yet updated torch.amp, which creates warnings.
+warnings.filterwarnings("ignore", category=FutureWarning)
 
 # Set up CUDA if available, otherwise use CPU
 DEVICE = torch.device("cuda" if torch.cuda.device_count() > 0 else "cpu")
@@ -175,26 +175,33 @@ def train(model, train_loader, val_loader, criterion, optimizer, scheduler, num_
     model.module.load_state_dict(torch.load('best_model.pth', map_location=DEVICE))
     return model
 
-# Function to generate a single password
-def gen_pass(model, char_to_idx, idx_to_char, min_len=8, max_len=26, temp=1.0):
+# Function to generate a batch of passwords
+def gen_pass_batch(model, char_to_idx, idx_to_char, batch_size, min_len=8, max_len=26, temp=1.0):
     model.eval()
     with torch.no_grad():
-        current_char = torch.tensor([[char_to_idx['<START>']]]).to(DEVICE)
-        password = []
+        current_chars = torch.tensor([[char_to_idx['<START>']] for _ in range(batch_size)], dtype=torch.long).to(DEVICE)
+        passwords = [[] for _ in range(batch_size)]
+        finished = [False] * batch_size
+
         for _ in range(max_len):
-            output = model(current_char)
-            output = output[:, -1, :] / temp
-            prob = torch.softmax(output, dim=-1)
-            next_char = torch.multinomial(prob, 1).item()
-            if next_char == char_to_idx['<END>'] and len(password) >= min_len:
+            outputs = model(current_chars)
+            outputs = outputs[:, -1, :] / temp
+            probs = torch.softmax(outputs, dim=-1)
+            next_chars = torch.multinomial(probs, 1).squeeze(1)
+
+            for i, next_char in enumerate(next_chars):
+                if next_char == char_to_idx['<END>'] and len(passwords[i]) >= min_len:
+                    finished[i] = True
+                elif next_char != char_to_idx['<PAD>'] and not finished[i]:
+                    passwords[i].append(idx_to_char[next_char.item()])
+
+            if all(finished):
                 break
-            if next_char != char_to_idx['<PAD>'] and next_char != char_to_idx['<END>']:
-                password.append(idx_to_char[next_char])
-            current_char = torch.cat([current_char, torch.tensor([[next_char]]).to(DEVICE)], dim=1)
-        
-        if len(password) < min_len:
-            return None
-        return ''.join(password)
+            
+            current_chars = torch.cat([current_chars, next_chars.unsqueeze(1)], dim=1)
+
+        # Return generated passwords, ignoring those that didn't meet the minimum length requirement
+        return [''.join(pwd) for pwd in passwords if len(pwd) >= min_len]
 
 # Main function to handle command-line arguments and run the program
 def main():
@@ -216,7 +223,7 @@ def main():
         
         if os.path.exists(args.model):
             print(f"Loading existing model: {args.model}")
-            checkpoint = torch.load(args.model, map_location=DEVICE, weights_only=True)
+            checkpoint = torch.load(args.model, map_location=DEVICE)
             char_to_idx = checkpoint['char_to_idx']
             idx_to_char = checkpoint['idx_to_char']
             model = PassGen(len(char_to_idx), embed_size=256, hidden_size=512, num_layers=3).to(DEVICE)
@@ -246,7 +253,6 @@ def main():
         train_dataset = PassData(train_passwords, max_len)
         val_dataset = PassData(val_passwords, max_len)
 
-        # Ensure the dataset uses the same character mapping as the model
         train_dataset.char_to_idx = char_to_idx
         train_dataset.idx_to_char = idx_to_char
         train_dataset.vocab_size = len(char_to_idx)
@@ -282,27 +288,26 @@ def main():
 
         # Load the model
         print(f"Loading model: {args.model}")
-        checkpoint = torch.load(args.model, map_location=DEVICE, weights_only=True)
+        checkpoint = torch.load(args.model, map_location=DEVICE)
         char_to_idx = checkpoint['char_to_idx']
         idx_to_char = checkpoint['idx_to_char']
         model = PassGen(len(char_to_idx), embed_size=256, hidden_size=512, num_layers=3).to(DEVICE)
         model.load_state_dict(checkpoint['model_state_dict'])
         model.eval()
 
-        # Generate passwords
+        # Generate passwords in batches
         print(f"Generating passwords...")
-        generated_passwords = []
-        while len(generated_passwords) < args.num_pass:
-            password = gen_pass(model, char_to_idx, idx_to_char, temp=args.temp)
-            if password:
-                generated_passwords.append(password)
-                print(f"Generated {len(generated_passwords)}: {password}")
-
-        # Save generated passwords
         with open(args.output, 'w', encoding='utf-8') as f:
-            for password in generated_passwords:
-                f.write(f"{password}\n")
-        print(f"Passwords saved: {args.output}")
+            total_generated = 0
+            while total_generated < args.num_pass:
+                current_batch_size = min(args.num_pass - total_generated, args.batch)
+                batch_passwords = gen_pass_batch(model, char_to_idx, idx_to_char, current_batch_size, temp=args.temp)
+                for password in batch_passwords:
+                    f.write(f"{password}\n")
+                total_generated += len(batch_passwords)
+                print(f"Generated {total_generated}/{args.num_pass} passwords")
+
+        print(f"Passwords saved to: {args.output}")
 
 if __name__ == "__main__":
     main()
