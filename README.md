@@ -57,6 +57,8 @@ Note: If you intend to use a GPU for training and generation, ensure that you ha
 
 TorchPass can operate in two main modes: training (`train`) and generation (`generate`). The functionality can be controlled using command-line arguments.
 
+A sample model has been uploaded to Sample/model.pth. It was trained over many hours using a custom dataset.
+
 ### Training Mode
 
 To train the model, use the following command:
