@@ -9,6 +9,8 @@ Update 08/02/2024: Added support for multiple GPU hosts.
 
 Update 08/04/2024 Added batching for generation to speed up output.
 
+Update 08/04/2024 pt2. Numerous additional performance upgrades around password generation. Uploaded sample model, trained on custom dataset.
+
 ## Features
 
 ### 1. **Device Agnostic**
