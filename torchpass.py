@@ -15,7 +15,12 @@ import warnings
 warnings.filterwarnings("ignore", category=FutureWarning)
 
 # Set up CUDA if available, otherwise use CPU
-DEVICE = torch.device("cuda" if torch.cuda.device_count() > 0 else "cpu")
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+# Determine number of available CPU cores and use <80% of them
+available_cores = multiprocessing.cpu_count()
+used_cores = max(1, int(available_cores * 0.8))  # At least 1 core
+torch.set_num_threads(used_cores)
 
 # Print the device being used, but only in the main process
 if multiprocessing.current_process().name == "MainProcess":
@@ -121,7 +126,7 @@ def train(model, train_loader, val_loader, criterion, optimizer, scheduler, num_
             optimizer.zero_grad(set_to_none=True)
             
             # Use automatic mixed precision for faster training
-            with torch.amp.autocast('cuda' if torch.cuda.is_available() else 'cpu'):
+            with torch.amp.autocast(device_type='cuda' if torch.cuda.is_available() else 'cpu'):
                 outputs = model(inputs)
                 loss = criterion(outputs.contiguous().view(-1, outputs.size(-1)), targets.contiguous().view(-1))
             
@@ -146,7 +151,7 @@ def train(model, train_loader, val_loader, criterion, optimizer, scheduler, num_
                 targets = batch[:, 1:]
                 
                 # Use automatic mixed precision for faster training
-                with torch.amp.autocast('cuda' if torch.cuda.is_available() else 'cpu'):
+                with torch.amp.autocast(device_type='cuda' if torch.cuda.is_available() else 'cpu'):
                     outputs = model(inputs)
                     loss = criterion(outputs.contiguous().view(-1, outputs.size(-1)), targets.contiguous().view(-1))
                 total_val_loss += loss.item()
@@ -182,9 +187,20 @@ def train(model, train_loader, val_loader, criterion, optimizer, scheduler, num_
     
     return model
 
+    
+    # Load the best model
+    if torch.cuda.device_count() > 1:
+        model.module.load_state_dict(torch.load('best_model.pth', map_location=DEVICE))
+    else:
+        model.load_state_dict(torch.load('best_model.pth', map_location=DEVICE))
+    
+    return model
+
 # Function to generate a batch of passwords
 def gen_pass_batch(model, char_to_idx, idx_to_char, batch_size, min_len=8, max_len=26, temp=1.0):
+    model.to(DEVICE)
     model.eval()
+    
     with torch.no_grad():
         current_chars = torch.tensor([[char_to_idx['<START>']] for _ in range(batch_size)], dtype=torch.long).to(DEVICE)
         passwords = [[] for _ in range(batch_size)]
@@ -233,7 +249,7 @@ def main():
             checkpoint = torch.load(args.model, map_location=DEVICE)
             char_to_idx = checkpoint['char_to_idx']
             idx_to_char = checkpoint['idx_to_char']
-            model = PassGen(len(char_to_idx), embed_size=256, hidden_size=512, num_layers=3).to(DEVICE)
+            model = PassGen(len(char_to_idx), embed_size=256, hidden_size=512, num_layers=3)
             model.load_state_dict(checkpoint['model_state_dict'])
             print("Existing model loaded successfully. Continuing training.")
         else:
@@ -243,10 +259,12 @@ def main():
             char_to_idx['<START>'] = len(char_to_idx)
             char_to_idx['<END>'] = len(char_to_idx)
             idx_to_char = {i: char for char, i in char_to_idx.items()}
-            model = PassGen(len(char_to_idx), embed_size=256, hidden_size=512, num_layers=3).to(DEVICE)
+            model = PassGen(len(char_to_idx), embed_size=256, hidden_size=512, num_layers=3)
 
         if torch.cuda.device_count() > 1:
             model = nn.DataParallel(model)
+
+        model.to(DEVICE)
 
         # Load and preprocess password data
         with open(args.input, 'r', encoding='latin-1') as f:
@@ -260,7 +278,6 @@ def main():
         train_dataset = PassData(train_passwords, max_len)
         val_dataset = PassData(val_passwords, max_len)
 
-        # Ensure the dataset uses the same character mapping as the model
         train_dataset.char_to_idx = char_to_idx
         train_dataset.idx_to_char = idx_to_char
         train_dataset.vocab_size = len(char_to_idx)
@@ -306,21 +323,30 @@ def main():
         checkpoint = torch.load(args.model, map_location=DEVICE)
         char_to_idx = checkpoint['char_to_idx']
         idx_to_char = checkpoint['idx_to_char']
-        model = PassGen(len(char_to_idx), embed_size=256, hidden_size=512, num_layers=3).to(DEVICE)
+        model = PassGen(len(char_to_idx), embed_size=256, hidden_size=512, num_layers=3)
         model.load_state_dict(checkpoint['model_state_dict'])
+
+        if torch.cuda.device_count() > 1:
+            model = nn.DataParallel(model)
+
+        model.to(DEVICE)
         model.eval()
 
         # Generate passwords in batches
         print(f"Generating passwords...")
         with open(args.output, 'w', encoding='utf-8') as f:
             total_generated = 0
+            pbar = tqdm(total=args.num_pass, desc="Generating passwords")
             while total_generated < args.num_pass:
                 current_batch_size = min(args.num_pass - total_generated, args.batch)
                 batch_passwords = gen_pass_batch(model, char_to_idx, idx_to_char, current_batch_size, temp=args.temp)
                 for password in batch_passwords:
                     f.write(f"{password}\n")
-                total_generated += len(batch_passwords)
+                new_passwords = len(batch_passwords)
+                total_generated += new_passwords
+                pbar.update(new_passwords)
                 print(f"Generated {total_generated}/{args.num_pass} passwords")
+            pbar.close()
 
         print(f"Passwords saved to: {args.output}")
 
