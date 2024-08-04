@@ -6,10 +6,12 @@ TorchPass is a password generation program that leverages modern deep learning t
 It now only takes ~10 hours to run 100 epochs against the Rockyou dataset with a single NVIDIA 3070. This is a dramatic improvement over PassGAN.
 
 Update 08/02/2024: Added support for multiple GPU hosts.
+
 ## Features
 
 ### 1. **Device Agnostic**
    - Automatically detects and utilizes CUDA-enabled GPUs for accelerated training and generation. Falls back to CPU if GPU is unavailable.
+   - Supports multi-GPU training using `nn.DataParallel` for faster computation.
 
 ### 2. **Custom Dataset Handling**
    - Supports custom datasets through a user-defined list of passwords. The dataset is preprocessed to ensure compatibility with the model, including character-to-index mapping and padding.
@@ -99,7 +101,7 @@ python torchpass.py --mode generate --model model.pth --output generated_passwor
 ## Notes
 At this time, I've not cracked how to memory map the dataset beyond the RAM limit. The issue sits with degredation of performance when reading from SSD instead of RAM. For the time being, split the dataset to fit into your RAM.
 
-NPUs will not be supported in the near future, as ```aten::_thnn_fused_lstm_cell``` is not supported by DirectML at this time. If that changes, I will revist.
+NPUs will not be supported in the near future, as ```aten::_thnn_fused_lstm_cell``` is not supported by DirectML at this time. If that changes, I will revisit.
 
 ## Contributing
 Feel welcome to submit pull requests! This was started as a mental exercise so I am very open to improvements!
