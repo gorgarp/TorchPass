@@ -6,6 +6,7 @@ TorchPass is a password generation program that leverages modern deep learning t
 It now only takes ~10 hours to run 100 epochs against the Rockyou dataset with a single NVIDIA 3070. This is a dramatic improvement over PassGAN.
 
 Update 08/02/2024: Added support for multiple GPU hosts.
+
 Update 08/04/2024 Added batching for generation to speed up output.
 
 ## Features
