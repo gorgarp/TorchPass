@@ -175,8 +175,8 @@ def generate_batch(model, char_to_idx, idx_to_char, batch_size, gpu_id, min_len=
 
     return [''.join(pwd) for pwd in passwords if len(pwd) >= min_len]
 
-# Generate passwords dynamically with multiprocessing
-def dynamic_generate_passwords(model, char_to_idx, idx_to_char, num_passwords, batch_size, num_workers, temp):
+# Generate passwords with multiprocessing
+def generate_passwords(model, char_to_idx, idx_to_char, num_passwords, batch_size, num_workers, temp):
     total_generated = 0
     passwords = []
     num_gpus = torch.cuda.device_count()
@@ -187,8 +187,6 @@ def dynamic_generate_passwords(model, char_to_idx, idx_to_char, num_passwords, b
         pbar = tqdm(total=num_passwords, desc="Generating passwords")
         
         while total_generated < num_passwords:
-            start_time = time.time()
-            
             batch_results = [pool.apply_async(generate_batch, (model, char_to_idx, idx_to_char, batch_size, i % num_gpus, temp)) for i in range(num_workers)]
             for result in batch_results:
                 batch_passwords = result.get()
@@ -196,18 +194,7 @@ def dynamic_generate_passwords(model, char_to_idx, idx_to_char, num_passwords, b
                 new_passwords = len(batch_passwords)
                 total_generated += new_passwords
                 pbar.update(new_passwords)
-            
-            end_time = time.time()
-            generation_time = end_time - start_time
-            passwords_per_second = len(batch_passwords) * num_workers / generation_time
-
-            if passwords_per_second < 1000:
-                batch_size = max(64, batch_size // 2)
-                num_workers = min(num_workers + 1, os.cpu_count())
-            elif passwords_per_second > 5000:
-                batch_size = min(batch_size * 2, 4096)
-                num_workers = max(1, num_workers - 1)
-
+        
         pbar.close()
 
     return passwords[:num_passwords]
@@ -314,7 +301,7 @@ def main():
         model.eval()
 
         print(f"Generating passwords...")
-        passwords = dynamic_generate_passwords(model, char_to_idx, idx_to_char, args.num_pass, args.batch, args.workers, args.temp)
+        passwords = generate_passwords(model, char_to_idx, idx_to_char, args.num_pass, args.batch, args.workers, args.temp)
 
         with open(args.output, 'w', encoding='utf-8') as f:
             for password in passwords:
