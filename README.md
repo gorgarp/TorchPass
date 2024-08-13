@@ -1,27 +1,21 @@
 
 # TorchPass
 
-TorchPass is a password generation program that leverages modern deep learning techniques to generate "human-like" password lists. While inspired by the concepts introduced in PassGAN, TorchPass is a complete rewrite that incorporates current best practices in deep learning and natural language processing using PyTorch.
+TorchPass is a password generation program leveraging advanced deep learning techniques to generate "human-like" password lists. Inspired by PassGAN, TorchPass is a complete rewrite that incorporates modern best practices in deep learning and natural language processing using PyTorch.
 
-It now only takes ~10 hours to run 100 epochs against the Rockyou dataset with a single NVIDIA 3070. This is a dramatic improvement over PassGAN.
+With a single NVIDIA 3070, TorchPass can now train for 100 epochs on the Rockyou dataset in approximately <8 hours, a significant improvement over PassGAN.
 
-Update 08/02/2024: Added support for multiple GPU hosts.
+## Updates
 
-Update 08/04/2024: Added batching for generation to speed up output.
-
-Update 08/04/2024: pt2. Numerous additional performance upgrades around password generation. Uploaded sample model, trained on custom dataset.
-
-Update 08/13/2023: Major update. Numerous optimizations, including things such as multiprocessing cuda streams for generation and data loader memory tuning. 
-
-
-![UML](https://github.com/user-attachments/assets/849fadc0-0775-42b3-82db-830c4c5a4c30)
-
+- **08/13/2024:** Major update with numerous optimizations, including multiprocessing CUDA streams for generation and data loader memory tuning.
+- **08/04/2024:** Added batching for generation and numerous performance upgrades. Uploaded a sample model trained on a custom dataset.
+- **08/02/2024:** Added support for multiple GPU hosts.
 
 ## Features
 
-### 1. **Device Agnostic**
-   - Automatically detects and utilizes CUDA-enabled GPUs for accelerated training and generation. Falls back to CPU if GPU is unavailable.
-   - Supports multi-GPU training using `nn.DataParallel` for faster computation.
+### 1. **GPU-Optimized**
+   - Automatically detects and utilizes CUDA-enabled GPUs for accelerated training and generation. No support for CPU-only execution to ensure maximum performance.
+   - Multi-GPU support for training and generation, allowing faster computation across multiple devices.
 
 ### 2. **Custom Dataset Handling**
    - Supports custom datasets through a user-defined list of passwords. The dataset is preprocessed to ensure compatibility with the model, including character-to-index mapping and padding.
@@ -37,14 +31,14 @@ Update 08/13/2023: Major update. Numerous optimizations, including things such a
 
 ### 5. **Password Generation**
    - Generates passwords of varying lengths (configurable in code) using temperature scaling to control the randomness and diversity of the generated outputs.
-   - Can generate a specified number of passwords in a single run, making it easy to generate large datasets.
+   - Efficiently generates large datasets with batch processing and multi-GPU support.
 
 ### 6. **Multi-Process Data Loading**
    - Supports multi-process data loading for faster training, especially on large datasets, by utilizing multiple CPU cores.
 
 ## Installation
 
-To install TorchPass, ensure you have Python 3.7+ and PyTorch installed. Then, clone the repository and install the required dependencies. For optimal performance, it is recommended to have CUDA installed for GPU acceleration.
+To install TorchPass, ensure you have Python 3.7+ and PyTorch installed. Then, clone the repository and install the required dependencies. For optimal performance, CUDA must be installed for GPU acceleration.
 
 ```bash
 # Clone the repository
@@ -57,13 +51,11 @@ cd torchpass
 pip install -r requirements.txt
 ```
 
-Note: If you intend to use a GPU for training and generation, ensure that you have CUDA installed and configured properly on your system.
-
 ## Usage
 
 TorchPass can operate in two main modes: training (`train`) and generation (`generate`). The functionality can be controlled using command-line arguments.
 
-A sample model has been uploaded to Sample/model.pth. It was trained over many hours using a custom dataset.
+A sample model has been uploaded to `Sample/model.pth`. It was trained over many hours using a custom dataset.
 
 ### Training Mode
 
@@ -80,14 +72,14 @@ python torchpass.py --mode train --input /path/to/passwords.txt --model model.pt
 - `--model`: (Optional, default: `'model.pth'`) Path to save or load the model. If the file exists, the model will continue training from the saved state.
 - `--epochs`: (Optional, default: `50`) Specifies the number of training epochs.
 - `--batch`: (Optional, default: `256`) Specifies the batch size for training.
-- `--worker`: (Optional, default: `4`) Specifies the number of worker processes for data loading.
+- `--workers`: (Optional, default: `4`) Specifies the number of worker processes for data loading.
 
 ### Generation Mode
 
 To generate passwords using a pre-trained model, use the following command:
 
 ```bash
-python torchpass.py --mode generate --model model.pth --output generated_passwords.txt --num_pass 100 --temp 1.0
+python torchpass.py --mode generate --model model.pth --output generated_passwords.txt --num_pass 100 --temp 1.0 --workers 4
 ```
 
 #### Arguments
@@ -97,6 +89,7 @@ python torchpass.py --mode generate --model model.pth --output generated_passwor
 - `--output`: (Required) Specifies the output file to save the generated passwords.
 - `--num_pass`: (Optional, default: `100`) Specifies the number of passwords to generate.
 - `--temp`: (Optional, default: `1.0`) Specifies the temperature for generation, controlling the randomness. Lower values make the output more deterministic, while higher values increase randomness.
+- `--workers`: (Optional, default: `4`) Specifies the number of worker processes for password generation.
 
 ### Example Commands
 
@@ -107,16 +100,17 @@ python torchpass.py --mode generate --model model.pth --output generated_passwor
 
 - **Generating passwords:**
   ```bash
-  python torchpass.py --mode generate --model best_model.pth --output my_generated_passwords.txt --num_pass 200 --temp 0.8
+  python torchpass.py --mode generate --model best_model.pth --output my_generated_passwords.txt --num_pass 200 --temp 0.8 --workers 4
   ```
 
 ## Notes
-At this time, I've not cracked how to memory map the dataset beyond the RAM limit. The issue sits with degredation of performance when reading from SSD instead of RAM. For the time being, split the dataset to fit into your RAM.
 
-NPUs will not be supported in the near future, as ```aten::_thnn_fused_lstm_cell``` is not supported by DirectML at this time. If that changes, I will revisit.
+- Dataset handling is optimized for systems with sufficient RAM. For large datasets exceeding available memory, performance may degrade when reading from SSD. Consider splitting the dataset to fit into your system's RAM.
+- NPUs are currently unsupported due to incompatibility with the `aten::_thnn_fused_lstm_cell` operation in DirectML. This may be revisited if support is added in the future.
 
 ## Contributing
-Feel welcome to submit pull requests! This was started as a mental exercise so I am very open to improvements!
+
+Feel free to submit pull requests! This project started as a mental exercise, and I'm open to improvements and new ideas!
 
 ## License
 
