@@ -11,7 +11,7 @@ Update 08/04/2024: Added batching for generation to speed up output.
 
 Update 08/04/2024: pt2. Numerous additional performance upgrades around password generation. Uploaded sample model, trained on custom dataset.
 
-Update 08/13/2023: Major update. Numerous optimizations, including things such as multiprocessing cuda streams for generation and dynamic generation tuning.
+Update 08/13/2023: Major update. Numerous optimizations, including things such as multiprocessing cuda streams for generation and data loader memory tuning. 
 
 
 ![UML](https://github.com/user-attachments/assets/849fadc0-0775-42b3-82db-830c4c5a4c30)
