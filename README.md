@@ -107,6 +107,7 @@ python torchpass.py --mode generate --model model.pth --output generated_passwor
 
 - Dataset handling is optimized for systems with sufficient RAM. For large datasets exceeding available memory, performance may degrade when reading from SSD. Consider splitting the dataset to fit into your system's RAM.
 - NPUs are currently unsupported due to incompatibility with the `aten::_thnn_fused_lstm_cell` operation in DirectML. This may be revisited if support is added in the future.
+- When it comes to LTSM, it often times seems that you would want more workers with smaller batchs to make inference faster. However, this is often the inverse of what you should do. Check your GPU utilization and play with lowering workers, while increasing batch size. It is a bit of an art but once you find the sweet spot for your GPU, you can use it on subsequent runs.
 
 ## Contributing
 
